@@ -9,7 +9,7 @@ from langchain.prompts.chat import (
     HumanMessagePromptTemplate,
 )
 from langchain.chains import LLMChain
-from tracetree_visitor import analyze_file
+from tracetree_visitor import analyze_file, extract_function_names
 from extract_snippet import extract_code_snippet
 
 from tree_handler import create_tree, display_tree, flatten_tree
@@ -76,15 +76,8 @@ def upload_code():
 
     try:
         # Analyze the file at the given path
-        result = analyze_file(file_path)
-
-        functions = []
-        for func_name, info in result.items():
-            functions.append({
-                "name": func_name,
-                "start_line": info["start_line"],
-                "end_line": info["end_line"],
-            })
+        functions = extract_function_names(file_path)
+        print(functions)
 
         # Read the file content
         with open(file_path, "r") as f:

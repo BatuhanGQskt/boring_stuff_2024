@@ -213,3 +213,36 @@ def analyze_file(file_path, base_path=None):
     # Second pass: Analyze function calls
     extractor.visit(tree)
     return extractor.function_calls
+
+def extract_function_names(file_path):
+    """
+    Extracts all user-defined function names from a given Python file.
+
+    Parameters:
+    - file_path (str): The path to the Python file.
+
+    Returns:
+    - List[str]: A list of function names defined in the file.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            code = f.read()
+        tree = ast.parse(code)
+        function_names = []
+
+        # Traverse the AST to find all FunctionDef nodes
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                function_names.append(node.name)
+
+        return function_names
+
+    except FileNotFoundError:
+        print(f"Error: The file '{file_path}' does not exist.")
+        return []
+    except SyntaxError as e:
+        print(f"Syntax error in file '{file_path}': {e}")
+        return []
+    except Exception as e:
+        print(f"An error occurred while processing '{file_path}': {e}")
+        return []

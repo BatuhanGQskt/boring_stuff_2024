@@ -103,13 +103,13 @@
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.name = "function";
-        checkbox.value = func.name;
-        checkbox.id = func.name;
+        checkbox.value = func;
+        checkbox.id = func;
         checkbox.className = "form-check-input";
 
         const label = document.createElement("label");
-        label.htmlFor = func.name;
-        label.textContent = func.name;
+        label.htmlFor = func;
+        label.textContent = func;
         label.className = "form-check-label";
 
         checkboxDiv.appendChild(checkbox);
