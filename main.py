@@ -26,5 +26,4 @@ def get_function_line(extractor_output, function_name):
 
 
 if __name__ == "__main__":
-    print('Hello')
     main()
