@@ -74,6 +74,8 @@ def upload_code():
     file_path = os.path.join(temp_dir, file.filename)
     file.save(file_path)
 
+    print("File: ", file.file)
+
     # Analyze the file to get functions
     try:
         result = analyze_file(file_path)
@@ -123,6 +125,8 @@ def optimize_code():
 
         function_changes = {}
         for func_name in selected_functions:
+            
+
             start_line, end_line = get_function_line(analysis_result, func_name)
             if start_line is None or end_line is None:
                 function_changes[func_name] = {

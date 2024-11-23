@@ -1,7 +1,7 @@
 from tracetree_visitor import analyze_file
 from extract_snippet import extract_code_snippet
 import pprint
-from hackatum.tree_handler import create_tree
+from tree_handler import create_tree, display_tree, flatten_tree
 
 def main():
     file_path = input("File path: ")
@@ -16,7 +16,14 @@ def main():
 
     print(code_snippet)
 
-    create_tree(result, selected_function)
+    myTree = create_tree(result, selected_function)
+
+    display_tree(myTree)
+
+    flat_tree, flat_names = flatten_tree(myTree)
+    
+    print("FLAT NAMES")
+    print(flat_names)
 
 
 def get_function_line(extractor_output, function_name):
@@ -26,5 +33,4 @@ def get_function_line(extractor_output, function_name):
 
 
 if __name__ == "__main__":
-    print('Hallo')
     main()
