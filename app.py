@@ -119,6 +119,7 @@ def optimize_code():
     try:
         # Analyze the file to get function line numbers
         analysis_result = analyze_file(file_path)
+        print(analysis_result)
 
         function_changes = {}
         for func_name in selected_functions:
