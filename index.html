@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Optimizer</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="container my-5">
+    <h1 class="text-center text-primary mb-4">EfficientBrains</h1>
+    <p class="text-center mb-4">
+      Select a file containing your code and click "Upload" to analyze and optimize its functions.
+    </p>
+    <form id="upload-form" class="text-center mb-4">
+      <div class="mb-3">
+        <input type="file" id="file-input" class="form-control w-50 mx-auto" accept=".py,.txt" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg">Upload</button>
+    </form>
+    <div id="functions-list" class="card shadow p-4 mb-4" style="display: none;">
+      <h2 class="card-title mb-4 text-center">Select Functions to Optimize</h2>
+      <form id="functions-form">
+        <!-- Function checkboxes will be inserted dynamically -->
+      </form>
+    </div>
+    <div id="output-container" class="container mt-5"></div>
+  </div>
+
+  <!-- Bootstrap JS and dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const uploadForm = document.getElementById("upload-form");
+    const fileInput = document.getElementById("file-input");
+    const functionsList = document.getElementById("functions-list");
+    const functionsForm = document.getElementById("functions-form");
+    const outputContainer = document.getElementById("output-container");
+
+    let fileContent = "";
+
+    // Handle file upload and analysis
+    uploadForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const file = fileInput.files[0];
+      if (!file) {
+        alert("Please select a file!");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        // Show a loading message
+        outputContainer.innerHTML = "<p>Uploading and analyzing your code...</p>";
+
+        const response = await fetch("http://127.0.0.1:5000/upload-code", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        fileContent = result.file_content;
+        displayFunctions(result.functions);
+        outputContainer.innerHTML = ""; // Clear the loading message
+      } catch (error) {
+        outputContainer.innerHTML = `<p class="text-danger">${error.message}</p>`;
+      }
+    });
+
+    // Display available functions
+    function displayFunctions(functions) {
+      if (functions.length === 0) {
+        outputContainer.innerHTML = "<p>No functions found in the code.</p>";
+        return;
+      }
+
+      functionsList.style.display = "block";
+      functionsForm.innerHTML = ""; // Clear previous content
+
+      functions.forEach((func) => {
+        const checkboxDiv = document.createElement("div");
+        checkboxDiv.className = "form-check mb-2";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.name = "function";
+        checkbox.value = func.name;
+        checkbox.id = func.name;
+        checkbox.className = "form-check-input";
+
+        const label = document.createElement("label");
+        label.htmlFor = func.name;
+        label.textContent = func.name;
+        label.className = "form-check-label";
+
+        checkboxDiv.appendChild(checkbox);
+        checkboxDiv.appendChild(label);
+        functionsForm.appendChild(checkboxDiv);
+      });
+
+      const optimizeButton = document.createElement("button");
+      optimizeButton.type = "submit";
+      optimizeButton.textContent = "Optimize Selected Functions";
+      optimizeButton.className = "btn btn-primary mt-3";
+
+      functionsForm.appendChild(optimizeButton);
+    }
+
+    // Handle function optimization
+    functionsForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const selectedFunctions = Array.from(functionsForm.elements["function"])
+        .filter((el) => el.checked)
+        .map((el) => el.value);
+
+      if (selectedFunctions.length === 0) {
+        alert("Please select at least one function to optimize.");
+        return;
+      }
+
+      try {
+        outputContainer.innerHTML = "<p>Optimizing selected functions...</p>";
+
+        const response = await fetch("http://127.0.0.1:5000/optimize-code", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            file_content: fileContent,
+            selected_functions: selectedFunctions,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        displayOptimizedFunctions(result.function_changes);
+      } catch (error) {
+        outputContainer.innerHTML = `<p class="text-danger">${error.message}</p>`;
+      }
+    });
+
+    // Display original and optimized functions side-by-side
+    function displayOptimizedFunctions(functionChanges) {
+      outputContainer.innerHTML = ""; // Clear previous content
+
+      for (const [funcName, changes] of Object.entries(functionChanges)) {
+        // Create a row for the function
+        const row = document.createElement("div");
+        row.className = "row mb-4";
+
+        // Function name heading
+        const funcHeading = document.createElement("h3");
+        funcHeading.className = "text-center mb-3";
+        funcHeading.textContent = `Function: ${funcName}`;
+        outputContainer.appendChild(funcHeading);
+
+        // Original code column
+        const originalCol = document.createElement("div");
+        originalCol.className = "col-md-6";
+        originalCol.innerHTML = `
+          <div class="card shadow">
+            <div class="card-header bg-secondary text-white">
+              Original
+            </div>
+            <div class="card-body">
+              <pre class="bg-light p-3 rounded">${changes.original}</pre>
+            </div>
+          </div>
+        `;
+
+        // Optimized code column
+        const optimizedCol = document.createElement("div");
+        optimizedCol.className = "col-md-6";
+        optimizedCol.innerHTML = `
+          <div class="card shadow">
+            <div class="card-header bg-success text-white">
+              Optimized
+            </div>
+            <div class="card-body">
+              <pre class="bg-light p-3 rounded">${changes.optimized}</pre>
+            </div>
+          </div>
+        `;
+
+        // Append columns to the row
+        row.appendChild(originalCol);
+        row.appendChild(optimizedCol);
+
+        // Append the row to the output container
+        outputContainer.appendChild(row);
+      }
+    }
+  </script>
+</body>
+</html>
