@@ -12,6 +12,10 @@ from langchain.chains import LLMChain
 from tracetree_visitor import analyze_file
 from extract_snippet import extract_code_snippet
 
+from tree_handler import create_tree, display_tree, flatten_tree
+import re
+
+
 app = Flask(__name__)
 
 # Simplify CORS configuration
@@ -62,22 +66,16 @@ def home():
 
 @app.route("/upload-code", methods=["POST"])
 def upload_code():
-    if "file" not in request.files:
-        return jsonify({"error": "No file provided"}), 400
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
 
-    file = request.files["file"]
+    file_path = data.get("file_path")
+    if not file_path or not os.path.exists(file_path):
+        return jsonify({"error": "Invalid or non-existent file path."}), 400
 
-    if not file:
-        return jsonify({"error": "File is empty"}), 400
-
-    # Save the file to the system's temporary directory
-    file_path = os.path.join(temp_dir, file.filename)
-    file.save(file_path)
-
-    print("File: ", file.file)
-
-    # Analyze the file to get functions
     try:
+        # Analyze the file at the given path
         result = analyze_file(file_path)
 
         functions = []
@@ -87,71 +85,156 @@ def upload_code():
                 "start_line": info["start_line"],
                 "end_line": info["end_line"],
             })
-        # Read the file content to send back to the frontend
+
+        # Read the file content
         with open(file_path, "r") as f:
             file_content = f.read()
-        return jsonify({"functions": functions, "file_content": file_content})
+
+        return jsonify({"functions": functions, "file_content": file_content, "file_path": file_path})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        # Clean up the temporary file
-        os.remove(file_path)
 
 @app.route("/optimize-code", methods=["POST"])
 def optimize_code():
     data = request.get_json()
+    print(data)
     if not data:
         return jsonify({"error": "No data provided"}), 400
 
-    file_content = data.get("file_content")
-    selected_functions = data.get("selected_functions")
+    file_path = data.get("file_path")
+    selected_function = data.get("selected_functions")
 
-    if not file_content:
-        return jsonify({"error": "File content is empty"}), 400
+    if not file_path or not os.path.exists(file_path):
+        return jsonify({"error": "Invalid or non-existent file path."}), 400
 
-    if not selected_functions:
+    if not selected_function:
         return jsonify({"error": "No functions selected"}), 400
 
-    # Save the file content to a temporary file in the system's temp directory
-    temp_filename = "temp_code.py"
-    file_path = os.path.join(temp_dir, temp_filename)
-    with open(file_path, "w") as f:
-        f.write(file_content)
-
     try:
-        # Analyze the file to get function line numbers
+        print("File path:", file_path)
+        # Analyze the file at the given path
         analysis_result = analyze_file(file_path)
-        print(analysis_result)
 
-        function_changes = {}
-        for func_name in selected_functions:
-            
+        print("Select: " , selected_function)
+        print("Analysis: ", analysis_result)
+        analysis_tree = create_tree(analysis_result, selected_function[0])
 
-            start_line, end_line = get_function_line(analysis_result, func_name)
+        display_tree(analysis_tree)
+
+        flat_tree, flat_names = flatten_tree(analysis_tree)
+        
+        print("FLAT NAMES: ")
+        print(flat_names)
+
+        function_changes_elems = {}
+        for node in flat_names:
+            func_name, func_path, start_line, end_line = extract_feature_from_tree_elem(node)
+
             if start_line is None or end_line is None:
-                function_changes[func_name] = {
+                function_changes_elems[func_name] = {
                     "original": "Function not found.",
                     "optimized": "Function not found."
                 }
-                continue
 
-            # Extract the original function code
-            original_code_snippet = extract_code_snippet(file_path, start_line, end_line)
 
-            # Optimize the code snippet using the LLM
-            optimized_code = code_optimization_chain.run(user_code=original_code_snippet)
+            print("Name, path, start, end: ")
+            print(func_name, func_path, start_line, end_line)
 
-            function_changes[func_name] = {
-                "original": original_code_snippet.strip(),
-                "optimized": optimized_code.strip()
+            print("of the ", node)
+
+            function_changes_elems[func_name] = [func_path, int(start_line), int(end_line)]
+        
+        print("FUN CHANGES: ")
+        print(function_changes_elems)
+
+        function_changes = {}
+
+        for keys, items in function_changes_elems.items():
+            original_snippet = extract_code_snippet(items[0], items[1], items[2])
+            print("For func "+ str(keys) + ": ")
+            print(original_snippet)
+
+            optimized_code = code_optimization_chain.run(user_code=original_snippet)
+
+            function_changes[keys] = {
+                "original": original_snippet,
+                "optimized": optimized_code
             }
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        # Clean up the temporary file
-        os.remove(file_path)
 
-    return jsonify({"function_changes": function_changes})
+    return jsonify({"function_changes": function_changes, "updated_file_path": file_path})
+
+def extract_feature_from_tree_elem(s):
+    # Define the regular expression pattern
+    pattern = r'^(?P<func_name>\w+)\s\((?P<func_path>.+):(?P<start_line>\d+)-(?P<end_line>\d+)\)$'
+
+    # Match the pattern with the string
+    match = re.match(pattern, s)
+
+    if match:
+        func_name = match.group('func_name')
+        func_path = match.group('func_path')
+        start_line = int(match.group('start_line'))
+        end_line = int(match.group('end_line'))
+
+        return func_name, func_path, start_line, end_line
+    return None
+
+def replace_lines_in_file(file_path, start_line, end_line, new_text):
+    # Read the original file
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    # Adjust line numbers for zero-based indexing
+    start_idx = start_line - 1
+    end_idx = end_line
+
+    # Ensure new_text is a list of lines with newline characters
+    if isinstance(new_text, str):
+        new_text = new_text.splitlines(keepends=True)
+    else:
+        new_text = [line if line.endswith('\n') else line + '\n' for line in new_text]
+
+    # Replace the specified lines with the new text
+    lines[start_idx:end_idx] = new_text
+
+    # Write the updated content back to the file
+    with open(file_path, 'w') as file:
+        file.writelines(lines)
+
+def extract_snippet(file_path, start_line, end_line):
+    try:
+        # Open the file and read all lines
+        with open(file_path, 'r') as file:
+            lines = file.readlines()
+        
+        # Get the total number of lines in the file
+        total_lines = len(lines)
+        
+        # Validate the provided line numbers
+        if start_line < 1 or end_line > total_lines or start_line > end_line:
+            raise ValueError("Start or end line numbers are invalid or out of range.")
+        
+        # Adjust indices for zero-based indexing
+        start_idx = start_line - 1  # Python lists start at index 0
+        end_idx = end_line          # Slicing is up to but not including end_idx
+        
+        # Extract the snippet
+        snippet_lines = lines[start_idx:end_idx]
+        
+        # Join the lines into a single string
+        snippet = ''.join(snippet_lines)
+        
+        return snippet
+    
+    except FileNotFoundError:
+        print(f"Error: The file '{file_path}' was not found.")
+        return ''
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return ''
 
 if __name__ == "__main__":
     app.run(debug=True)

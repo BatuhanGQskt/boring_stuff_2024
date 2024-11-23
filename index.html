@@ -20,13 +20,13 @@
   <div class="container my-5">
     <h1 class="text-center text-primary mb-4">EfficientBrains</h1>
     <p class="text-center mb-4">
-      Select a file containing your code and click "Upload" to analyze and optimize its functions.
+      Enter the file path of your code and click "Analyze" to optimize its functions.
     </p>
-    <form id="upload-form" class="text-center mb-4">
+    <form id="path-form" class="text-center mb-4">
       <div class="mb-3">
-        <input type="file" id="file-input" class="form-control w-50 mx-auto" accept=".py,.txt" required>
+        <input type="text" id="file-path-input" class="form-control w-50 mx-auto" placeholder="Enter file path" required>
       </div>
-      <button type="submit" class="btn btn-primary btn-lg">Upload</button>
+      <button type="submit" class="btn btn-primary btn-lg">Analyze</button>
     </form>
     <div id="functions-list" class="card shadow p-4 mb-4" style="display: none;">
       <h2 class="card-title mb-4 text-center">Select Functions to Optimize</h2>
@@ -40,34 +40,34 @@
   <!-- Bootstrap JS and dependencies -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    const uploadForm = document.getElementById("upload-form");
-    const fileInput = document.getElementById("file-input");
+    const pathForm = document.getElementById("path-form");
+    const filePathInput = document.getElementById("file-path-input");
     const functionsList = document.getElementById("functions-list");
     const functionsForm = document.getElementById("functions-form");
     const outputContainer = document.getElementById("output-container");
 
-    let fileContent = "";
+    let filePath = "";
 
-    // Handle file upload and analysis
-    uploadForm.addEventListener("submit", async (event) => {
+    // Handle file path submission and analysis
+    pathForm.addEventListener("submit", async (event) => {
       event.preventDefault();
 
-      const file = fileInput.files[0];
-      if (!file) {
-        alert("Please select a file!");
+      filePath = filePathInput.value.trim();
+      if (!filePath) {
+        alert("Please enter a valid file path!");
         return;
       }
 
-      const formData = new FormData();
-      formData.append("file", file);
-
       try {
         // Show a loading message
-        outputContainer.innerHTML = "<p>Uploading and analyzing your code...</p>";
+        outputContainer.innerHTML = "<p>Analyzing your code...</p>";
 
         const response = await fetch("http://127.0.0.1:5000/upload-code", {
           method: "POST",
-          body: formData,
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ file_path: filePath }),
         });
 
         if (!response.ok) {
@@ -79,7 +79,6 @@
           throw new Error(result.error);
         }
 
-        fileContent = result.file_content;
         displayFunctions(result.functions);
         outputContainer.innerHTML = ""; // Clear the loading message
       } catch (error) {
@@ -148,7 +147,7 @@
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            file_content: fileContent,
+            file_path: filePath,
             selected_functions: selectedFunctions,
           }),
         });
