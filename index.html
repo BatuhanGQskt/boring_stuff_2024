@@ -29,9 +29,9 @@
       <button type="submit" class="btn btn-primary btn-lg">Analyze</button>
     </form>
     <div id="functions-list" class="card shadow p-4 mb-4" style="display: none;">
-      <h2 class="card-title mb-4 text-center">Select Functions to Optimize</h2>
+      <h2 class="card-title mb-4 text-center">Select Function to Optimize</h2>
       <form id="functions-form">
-        <!-- Function checkboxes will be inserted dynamically -->
+        <!-- Function radio buttons will be inserted dynamically -->
       </form>
     </div>
     <div id="output-container" class="container mt-5"></div>
@@ -96,30 +96,31 @@
       functionsList.style.display = "block";
       functionsForm.innerHTML = ""; // Clear previous content
 
-      functions.forEach((func) => {
-        const checkboxDiv = document.createElement("div");
-        checkboxDiv.className = "form-check mb-2";
+      // Add a radio button for each function
+      functions.forEach((func, index) => {
+        const radioDiv = document.createElement("div");
+        radioDiv.className = "form-check mb-2";
 
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.name = "function";
-        checkbox.value = func;
-        checkbox.id = func;
-        checkbox.className = "form-check-input";
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "function"; // Shared name for all radio buttons
+        radio.value = func;
+        radio.id = `function-${index}`; // Unique ID for each radio button
+        radio.className = "form-check-input";
 
         const label = document.createElement("label");
-        label.htmlFor = func;
+        label.htmlFor = `function-${index}`;
         label.textContent = func;
         label.className = "form-check-label";
 
-        checkboxDiv.appendChild(checkbox);
-        checkboxDiv.appendChild(label);
-        functionsForm.appendChild(checkboxDiv);
+        radioDiv.appendChild(radio);
+        radioDiv.appendChild(label);
+        functionsForm.appendChild(radioDiv);
       });
 
       const optimizeButton = document.createElement("button");
       optimizeButton.type = "submit";
-      optimizeButton.textContent = "Optimize Selected Functions";
+      optimizeButton.textContent = "Optimize Selected Function";
       optimizeButton.className = "btn btn-primary mt-3";
 
       functionsForm.appendChild(optimizeButton);
@@ -129,17 +130,15 @@
     functionsForm.addEventListener("submit", async (event) => {
       event.preventDefault();
 
-      const selectedFunctions = Array.from(functionsForm.elements["function"])
-        .filter((el) => el.checked)
-        .map((el) => el.value);
+      const selectedFunction = functionsForm.elements["function"].value;
 
-      if (selectedFunctions.length === 0) {
-        alert("Please select at least one function to optimize.");
+      if (!selectedFunction) {
+        alert("Please select a function to optimize.");
         return;
       }
 
       try {
-        outputContainer.innerHTML = "<p>Optimizing selected functions...</p>";
+        outputContainer.innerHTML = "<p>Optimizing selected function...</p>";
 
         const response = await fetch("http://127.0.0.1:5000/optimize-code", {
           method: "POST",
@@ -148,7 +147,7 @@
           },
           body: JSON.stringify({
             file_path: filePath,
-            selected_functions: selectedFunctions,
+            selected_functions: [selectedFunction],
           }),
         });
 
@@ -167,57 +166,97 @@
       }
     });
 
-    // Display original and optimized functions side-by-side
     function displayOptimizedFunctions(functionChanges) {
-      outputContainer.innerHTML = ""; // Clear previous content
+  outputContainer.innerHTML = ""; // Clear previous content
 
-      for (const [funcName, changes] of Object.entries(functionChanges)) {
-        // Create a row for the function
-        const row = document.createElement("div");
-        row.className = "row mb-4";
+  for (const [funcName, changes] of Object.entries(functionChanges)) {
+    const row = document.createElement("div");
+    row.className = "row mb-4";
 
-        // Function name heading
-        const funcHeading = document.createElement("h3");
-        funcHeading.className = "text-center mb-3";
-        funcHeading.textContent = `Function: ${funcName}`;
-        outputContainer.appendChild(funcHeading);
+    const funcHeading = document.createElement("h3");
+    funcHeading.className = "text-center mb-3";
+    funcHeading.textContent = `Function: ${funcName}`;
+    outputContainer.appendChild(funcHeading);
 
-        // Original code column
-        const originalCol = document.createElement("div");
-        originalCol.className = "col-md-6";
-        originalCol.innerHTML = `
-          <div class="card shadow">
-            <div class="card-header bg-secondary text-white">
-              Original
-            </div>
-            <div class="card-body">
-              <pre class="bg-light p-3 rounded">${changes.original}</pre>
-            </div>
-          </div>
-        `;
+    const originalCol = document.createElement("div");
+    originalCol.className = "col-md-6";
+    originalCol.innerHTML = `
+      <div class="card shadow">
+        <div class="card-header bg-secondary text-white">
+          Original
+        </div>
+        <div class="card-body">
+          <pre class="bg-light p-3 rounded">${changes.original}</pre>
+        </div>
+      </div>
+    `;
 
-        // Optimized code column
-        const optimizedCol = document.createElement("div");
-        optimizedCol.className = "col-md-6";
-        optimizedCol.innerHTML = `
-          <div class="card shadow">
-            <div class="card-header bg-success text-white">
-              Optimized
-            </div>
-            <div class="card-body">
-              <pre class="bg-light p-3 rounded">${changes.optimized}</pre>
-            </div>
-          </div>
-        `;
+    const optimizedCol = document.createElement("div");
+    optimizedCol.className = "col-md-6";
+    optimizedCol.innerHTML = `
+      <div class="card shadow d-flex flex-column">
+        <div class="card-header bg-success text-white">
+          Optimized
+        </div>
+        <div class="card-body flex-grow-1">
+          <pre class="bg-light p-3 rounded">${changes.optimized}</pre>
+        </div>
+        <div class="card-footer text-end">
+          <button class="btn btn-success accept-btn" 
+            data-func="${funcName}" 
+            data-start="${changes.start_line}" 
+            data-end="${changes.end_line}" 
+            data-path="${changes.file_path}">
+            +
+          </button>
+        </div>
+      </div>
+    `;
 
-        // Append columns to the row
-        row.appendChild(originalCol);
-        row.appendChild(optimizedCol);
+    row.appendChild(originalCol);
+    row.appendChild(optimizedCol);
+    outputContainer.appendChild(row);
+  }
 
-        // Append the row to the output container
-        outputContainer.appendChild(row);
+  const acceptButtons = document.querySelectorAll(".accept-btn");
+  acceptButtons.forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      const funcName = event.target.getAttribute("data-func");
+      const startLine = event.target.getAttribute("data-start");
+      const endLine = event.target.getAttribute("data-end");
+      const filePath = event.target.getAttribute("data-path");
+      const optimizedCode = event.target
+        .closest(".card")
+        .querySelector("pre").textContent;
+
+      try {
+        const response = await fetch("http://127.0.0.1:5000/accept-optimized-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            func_name: funcName,
+            file_path: filePath,
+            start_line: startLine,
+            end_line: endLine,
+            optimized_code: optimizedCode,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        alert(`Function "${funcName}" has been updated successfully!`);
+      } catch (error) {
+        console.error(error);
+        alert(`Failed to update function "${funcName}": ${error.message}`);
       }
-    }
+    });
+  });
+}
+
+
   </script>
 </body>
 </html>

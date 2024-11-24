@@ -40,6 +40,7 @@ llm = ChatOpenAI(temperature=0, model_name="gpt-4")
 system_message = SystemMessagePromptTemplate.from_template(
     "You are an expert Python programmer specializing in code optimization. "
     "Given a code snippet, optimize it for efficiency and readability. "
+    "Also, remember the codes that you solved or tried to optimize to further use."
     "If no code is provided, respond with 'No code provided.'. "
     "Provide the optimized code only, and don't give the exact same code as optimized."
 )
@@ -154,10 +155,43 @@ def optimize_code():
                 "optimized": optimized_code
             }
 
+            #file_path[keys] = {
+            #    "start_line": items[1],
+            #    "end_line": items[2],
+            #    "file_path": items[0]
+            #}
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
     return jsonify({"function_changes": function_changes, "updated_file_path": file_path})
+
+@app.route("/accept-optimized-code", methods=["POST"])
+def accept_optimized_code():
+    data = request.get_json()
+
+    print("Taken data: ", data)
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    file_path = data.get("file_path")
+    start_line = int(data.get("start_line", 0))
+    end_line = int(data.get("end_line", 0))
+    optimized_code = data.get("optimized_code")
+
+    if not file_path or not os.path.exists(file_path):
+        return jsonify({"error": "Invalid or non-existent file path."}), 400
+
+    if not optimized_code or start_line <= 0 or end_line <= 0:
+        return jsonify({"error": "Invalid input data."}), 400
+
+    try:
+        # Use replace_lines_in_file to update the file
+        replace_lines_in_file(file_path, start_line, end_line, optimized_code)
+        return jsonify({"message": f"Function updated successfully in {file_path}."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 def extract_feature_from_tree_elem(s):
     # Define the regular expression pattern
